@@ -1894,6 +1894,27 @@ export async function getContact(req: Request, res: Response) {
   }
 }
 
+export async function getPnLidEntry(req: Request, res: Response) {
+  const { phone = true } = req.params;
+  try {
+    let response;
+    for (const contato of contactToArray(phone as string, false)) {
+      response = await req.client.getPnLidEntry(contato);
+    }
+
+    res.status(200).json({ status: 'success', response: response });
+  } catch (error) {
+    req.logger.error(error);
+    res
+      .status(500)
+      .json({
+        status: 'error',
+        message: 'Error on get pn-lid entry',
+        error: error,
+      });
+  }
+}
+
 export async function getAllContacts(req: Request, res: Response) {
   /**
    * #swagger.tags = ["Contact"]

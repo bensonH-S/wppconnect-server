@@ -753,6 +753,12 @@ routes.get(
   DeviceController.getContact
 );
 routes.get(
+  '/api/:session/pn-lid/:phone',
+  verifyToken,
+  statusConnection,
+  DeviceController.getPnLidEntry
+);
+routes.get(
   '/api/:session/profile/:phone',
   verifyToken,
   statusConnection,
