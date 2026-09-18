@@ -248,7 +248,7 @@ export async function closeSession(req: Request, res: Response): Promise<any> {
         .json({ status: true, message: 'Session successfully closed' });
     }
 
-    const client = req.client ?? entry;
+    const client = (req.client ?? entry) as any;
     (clientsArray as any)[session] = { status: null };
 
     try {
@@ -514,7 +514,7 @@ export async function getSessionState(req: Request, res: Response) {
    */
   try {
     const { waitQrCode = false } = req.body;
-    const client = req.client;
+    const client = req.client as any;
     let qr: string | null = null;
     if (client?.qrcode && String(client.qrcode).startsWith('data:')) {
       qr = client.qrcode;
