@@ -515,10 +515,16 @@ export async function getSessionState(req: Request, res: Response) {
   try {
     const { waitQrCode = false } = req.body;
     const client = req.client;
-    const qr =
-      client?.urlcode != null && client?.urlcode != ''
-        ? await QRCode.toDataURL(client.urlcode)
-        : null;
+    let qr: string | null = null;
+    if (client?.qrcode && String(client.qrcode).startsWith('data:')) {
+      qr = client.qrcode;
+    } else if (client?.urlcode) {
+      try {
+        qr = await QRCode.toDataURL(client.urlcode);
+      } catch {
+        qr = null;
+      }
+    }
 
     if ((client == null || client.status == null) && !waitQrCode)
       res.status(200).json({ status: 'CLOSED', qrcode: null });
@@ -533,10 +539,10 @@ export async function getSessionState(req: Request, res: Response) {
       });
   } catch (ex) {
     req.logger.error(ex);
-    res.status(500).json({
-      status: 'error',
+    res.status(200).json({
+      status: 'CLOSED',
+      qrcode: null,
       message: 'The session is not active',
-      error: ex,
     });
   }
 }

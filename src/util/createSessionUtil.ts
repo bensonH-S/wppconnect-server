@@ -13,8 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { existsSync } from 'fs';
 import { create, SocketState } from '@wppconnect-team/wppconnect';
 import { Request } from 'express';
+
+function resolverChromePath(explicit?: string) {
+  const candidatos = [
+    explicit,
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_PATH,
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ].filter(Boolean) as string[];
+  return candidatos.find((p) => existsSync(p));
+}
 
 import { download } from '../controller/sessionController';
 import { WhatsAppServer } from '../types/WhatsAppServer';
@@ -41,7 +57,18 @@ export default class CreateSessionUtil {
   ) {
     try {
       let client = this.getClient(session) as any;
-      if (client.status != null && client.status !== 'CLOSED') return;
+      if (client.status != null && client.status !== 'CLOSED') {
+        if (client.status === 'QRCODE' && (client.qrcode || client.urlcode)) {
+          return;
+        }
+        try {
+          if (typeof client.close === 'function') await client.close();
+        } catch {
+          /* sessão travada em INITIALIZING */
+        }
+        clientsArray[session] = { status: null, session };
+        client = this.getClient(session);
+      }
       client.status = 'INITIALIZING';
       client.config = req.body;
 
@@ -54,11 +81,33 @@ export default class CreateSessionUtil {
 
       this.startChatWootClient(client);
 
-      if (req.serverOptions.customUserDataDir) {
-        req.serverOptions.createOptions.puppeteerOptions = {
-          userDataDir: req.serverOptions.customUserDataDir + session,
-        };
-      }
+      const prevPuppeteer =
+        req.serverOptions.createOptions.puppeteerOptions || {};
+      const chrome = resolverChromePath(prevPuppeteer.executablePath);
+      req.logger.info(
+        chrome
+          ? `[${session}] Chrome: ${chrome}`
+          : `[${session}] Chrome do sistema não achado; puppeteer tenta o bundle`
+      );
+      const puppeteerOptions = {
+        ...prevPuppeteer,
+        headless: prevPuppeteer.headless ?? true,
+        ...(req.serverOptions.customUserDataDir
+          ? { userDataDir: req.serverOptions.customUserDataDir + session }
+          : {}),
+        args: Array.from(
+          new Set([
+            ...(prevPuppeteer.args || []),
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+          ])
+        ),
+      };
+      if (chrome) puppeteerOptions.executablePath = chrome;
+      else delete puppeteerOptions.executablePath;
+      req.serverOptions.createOptions.puppeteerOptions = puppeteerOptions;
 
       const wppClient = await create(
         Object.assign(
@@ -144,10 +193,10 @@ export default class CreateSessionUtil {
       }
     } catch (e) {
       req.logger.error(e);
-      if (e instanceof Error && e.name == 'TimeoutError') {
-        const client = this.getClient(session) as any;
-        client.status = 'CLOSED';
-      }
+      const failed = this.getClient(session) as any;
+      failed.status = 'CLOSED';
+      failed.qrcode = null;
+      failed.urlcode = null;
     }
   }
 
