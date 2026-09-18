@@ -17,6 +17,13 @@ import { existsSync } from 'fs';
 import { create, SocketState } from '@wppconnect-team/wppconnect';
 import { Request } from 'express';
 
+function chromeUsavel(p?: string) {
+  if (!p || !existsSync(p)) return false;
+  const n = p.toLowerCase();
+  if (n.includes('chromium')) return false;
+  return true;
+}
+
 function resolverChromePath(explicit?: string) {
   const candidatos = [
     explicit,
@@ -24,12 +31,10 @@ function resolverChromePath(explicit?: string) {
     process.env.CHROME_PATH,
     '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   ].filter(Boolean) as string[];
-  return candidatos.find((p) => existsSync(p));
+  return candidatos.find((p) => chromeUsavel(p));
 }
 
 import { download } from '../controller/sessionController';
